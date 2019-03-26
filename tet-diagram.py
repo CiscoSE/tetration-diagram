@@ -139,15 +139,22 @@ def main():
                     pols = {}
                     #print(json.dumps(policy))
                     for rule in policy['l4_params']:
-                        if rule['port'][0] == rule['port'][1]:
-                            port = str(rule['port'][0])
-                        else:
-                            port = str(rule['port'][0]) + '-' + str(rule['port'][1])
+                        try:
+                            port=None
+                            if 'port' in rule:
+                                if rule['port'][0] == rule['port'][1]:
+                                    port = str(rule['port'][0])
+                                else:
+                                    port = str(rule['port'][0]) + '-' + str(rule['port'][1])
 
-                        if protocols[str(rule['proto'])]['Keyword'] in pols.keys():
-                            pols[protocols[str(rule['proto'])]['Keyword']].append(port)
-                        else:
-                            pols[protocols[str(rule['proto'])]['Keyword']] = [port]
+                            if protocols[str(rule['proto'])]['Keyword'] in pols.keys() and port != None:
+                                pols[protocols[str(rule['proto'])]['Keyword']].append(port)
+                            elif port != None:
+                                pols[protocols[str(rule['proto'])]['Keyword']] = [port]
+                            else:
+                                pols[protocols[str(rule['proto'])]['Keyword']] = []
+                        except:
+                            pass
 
                     pols = '\n'.join("%s=%r" % (key,', '.join(val)) for (key,val) in pols.iteritems())
 
