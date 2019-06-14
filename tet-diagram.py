@@ -165,7 +165,7 @@ def main():
                             policy_list.append(key)
 
                 if pols:
-                    graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id'],label=join(policy_list)))
+                    graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id'],label='; '.join(policy_list)))
                 else:
                     graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id']))
 
