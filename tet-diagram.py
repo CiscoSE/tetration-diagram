@@ -66,7 +66,7 @@ def main():
     """
     Main execution routine
     """
-    parser = argparse.ArgumentParser(description='Tetration Policy to XLS')
+    parser = argparse.ArgumentParser(description='Tetration Policy to DOT')
     parser.add_argument('--maxlogfiles', type=int, default=10, help='Maximum number of log files (default is 10)')
     parser.add_argument('--debug', nargs='?',
                         choices=['verbose', 'warnings', 'critical'],
@@ -156,10 +156,16 @@ def main():
                         except:
                             pass
 
-                    pols = '\n'.join("%s=%r" % (key,', '.join(val)) for (key,val) in pols.iteritems())
+                    policy_list = []
+                    for key, val in pols.iteritems():
+                        print(key,val)
+                        if len(val)>0:
+                            policy_list.append('{}={}'.format(key,', '.join(val)))
+                        else:
+                            policy_list.append(key)
 
                 if pols:
-                    graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id'],label=pols))
+                    graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id'],label=join(policy_list)))
                 else:
                     graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id']))
 
