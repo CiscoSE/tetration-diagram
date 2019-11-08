@@ -22,13 +22,14 @@ __license__ = "Cisco Sample Code License, Version 1.0"
 import pydot
 import argparse
 import json
+from builtins import input
 from tetpyclient import RestClient
 import requests.packages.urllib3
 from terminaltables import AsciiTable
 import csv
 
-API_ENDPOINT="{{TETRATION URL}}"
-API_CREDS="{{PATH TO TETRATION API CREDS JSON}}"
+API_ENDPOINT="https://%TET_URL%"
+API_CREDS="/%PATH_TO%/api_credentials.json"
 
 def selectTetrationApps(endpoint,credentials):
 
@@ -47,9 +48,8 @@ def selectTetrationApps(endpoint,credentials):
     print('\nApplications: ')
     for i,app in enumerate(resp.json()):
         app_table.append([i+1,app['name'],app['author'],app['primary']])
-        #print ('%i: %s'%(i+1,app['name']))
     print(AsciiTable(app_table).table)
-    choice = raw_input('\nSelect Tetration App: ')
+    choice = input('\nSelect Tetration App: ')
 
     choice = choice.split(',')
     appIDs = []
@@ -76,7 +76,7 @@ def main():
     args = parser.parse_args()
     apps = []
     if args.config is None:
-        print '%% No configuration file given - connecting directly to Tetration'
+        print('%% No configuration file given - connecting directly to Tetration')
         try:
             restclient = RestClient(API_ENDPOINT,credentials_file=API_CREDS,verify=False)
             appIDs = selectTetrationApps(endpoint=API_ENDPOINT,credentials=API_CREDS)
@@ -91,10 +91,10 @@ def main():
             with open(args.config) as config_file:
                 apps.append(json.load(config_file))
         except IOError:
-            print '%% Could not load configuration file'
+            print('%% Could not load configuration file')
             return
         except ValueError:
-            print 'Could not load improperly formatted configuration file'
+            print('Could not load improperly formatted configuration file')
             return
 
     protocols = {}
@@ -104,13 +104,13 @@ def main():
             for row in reader:
                 protocols[row['Decimal']]=row
     except IOError:
-        print '%% Could not load protocols file'
+        print('%% Could not load protocols file')
         return
     except ValueError:
-        print 'Could not load improperly formatted protocols file'
+        print('Could not load improperly formatted protocols file')
         return
 
-    showPorts = raw_input('\nWould you like to include ports and protocols in the diagram? [Y,N]: ')
+    showPorts = input('\nWould you like to include ports and protocols in the diagram? [Y,N]: ')
 
     if showPorts.upper() == 'Y':
         showPorts = True
@@ -121,17 +121,35 @@ def main():
         return
 
     for appDetails in apps:
-        graph = pydot.Dot(graph_type='digraph',name=appDetails['name'],label='Application Name: '+appDetails['name'])
+        internal = 0
+        external = 0
+        clusters_subgraph=pydot.Subgraph('Clusters',label='Application Policy Groups',rank='"same"')
+        filters_subgraph=pydot.Subgraph('Filters',label='External Policy Groups',rank='"same"')
         print('\nPreparing "%s"...'%appDetails['name'])
         if 'clusters' in appDetails.keys():
             for cluster in appDetails['clusters']:
                 node_names = cluster['name'] + ':'
                 for node in cluster['nodes']:
                     node_names = node_names + '\n' + node['name']
-                graph.add_node(pydot.Node(cluster['id'],label=node_names,shape='rectangle',style='filled',fontcolor='white',fillcolor='royalblue4'))
+                clusters_subgraph.add_node(pydot.Node(cluster['id'],label=node_names,shape='rectangle',style='filled',fontcolor='white',fillcolor='royalblue4'))
+                internal += 1
         if 'inventory_filters' in appDetails.keys():
             for invfilter in appDetails['inventory_filters']:
-                graph.add_node(pydot.Node(invfilter['id'],label='"'+invfilter['name']+'"',shape='rectangle',style='filled',fontcolor='white', fillcolor='orange2'))
+                if invfilter['name'] == appDetails['app_scope']['name']:
+                    clusters_subgraph.add_node(pydot.Node(invfilter['id'],label='"'+invfilter['name']+'"',shape='rectangle',style='filled',fontcolor='white', fillcolor='orange2'))
+                    internal += 1
+                else:
+                    filters_subgraph.add_node(pydot.Node(invfilter['id'],label='"'+invfilter['name']+'"',shape='rectangle',style='filled',fontcolor='white', fillcolor='orange2'))
+                    external += 1
+
+        if external > internal:
+            rankdir='LR'
+        else:
+            rankdir='RL'
+        graph = pydot.Dot(graph_type='digraph',name=appDetails['name'],label='Application Name: '+appDetails['name'],rankdir=rankdir)
+        graph.add_subgraph(clusters_subgraph)
+        graph.add_subgraph(filters_subgraph)
+        
         if 'default_policies' in appDetails.keys():
             for policy in appDetails['default_policies']:
                 pols=None
@@ -139,26 +157,27 @@ def main():
                     pols = {}
                     #print(json.dumps(policy))
                     for rule in policy['l4_params']:
-                        try:
-                            port=None
-                            if 'port' in rule:
-                                if rule['port'][0] == rule['port'][1]:
-                                    port = str(rule['port'][0])
-                                else:
-                                    port = str(rule['port'][0]) + '-' + str(rule['port'][1])
-
-                            if protocols[str(rule['proto'])]['Keyword'] in pols.keys() and port != None:
-                                pols[protocols[str(rule['proto'])]['Keyword']].append(port)
-                            elif port != None:
-                                pols[protocols[str(rule['proto'])]['Keyword']] = [port]
+                        if 'port' in rule:
+                            if rule['port'][0] == rule['port'][1]:
+                                port = str(rule['port'][0])
                             else:
+                                port = str(rule['port'][0]) + '-' + str(rule['port'][1])
+                        else:
+                            port = None
+
+                        if port == None:
+                            try:
                                 pols[protocols[str(rule['proto'])]['Keyword']] = []
-                        except:
-                            pass
+                            except:
+                                pols['PROTO-'+str(rule['proto'])]=[]
+                        elif protocols[str(rule['proto'])]['Keyword'] in pols.keys():
+                            pols[protocols[str(rule['proto'])]['Keyword']].append(port)
+                        else:
+                            pols[protocols[str(rule['proto'])]['Keyword']] = [port]
 
                     policy_list = []
-                    for key, val in pols.iteritems():
-                        print(key,val)
+                    for key, val in pols.items():
+                        #print(key,val)
                         if len(val)>0:
                             policy_list.append('{}={}'.format(key,', '.join(val)))
                         else:
@@ -168,8 +187,8 @@ def main():
                     graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id'],label='; '.join(policy_list)))
                 else:
                     graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id']))
-
-        f = open(appDetails['name']+'.dot','w')
+                
+        f = open(appDetails['name'].replace('/','-')+'.dot','w')
         f.write(graph.to_string())
 
 if __name__ == '__main__':
