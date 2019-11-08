@@ -28,8 +28,8 @@ import requests.packages.urllib3
 from terminaltables import AsciiTable
 import csv
 
-API_ENDPOINT="https://%TET_URL%"
-API_CREDS="/%PATH_TO%/api_credentials.json"
+API_ENDPOINT="{{TETRATION URL}}"
+API_CREDS="{{PATH TO TETRATION API CREDS JSON}}"
 
 def selectTetrationApps(endpoint,credentials):
 
@@ -155,7 +155,6 @@ def main():
                 pols=None
                 if showPorts:
                     pols = {}
-                    #print(json.dumps(policy))
                     for rule in policy['l4_params']:
                         if 'port' in rule:
                             if rule['port'][0] == rule['port'][1]:
@@ -177,7 +176,6 @@ def main():
 
                     policy_list = []
                     for key, val in pols.items():
-                        #print(key,val)
                         if len(val)>0:
                             policy_list.append('{}={}'.format(key,', '.join(val)))
                         else:
@@ -187,8 +185,11 @@ def main():
                     graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id'],label='; '.join(policy_list)))
                 else:
                     graph.add_edge(pydot.Edge(policy['consumer_filter_id'],policy['provider_filter_id']))
-                
-        f = open(appDetails['name'].replace('/','-')+'.dot','w')
+
+        if showPorts:                            
+            f = open(appDetails['name'].replace('/','-')+'.dot','w')
+        else:
+            f = open(appDetails['name'].replace('/','-')+'-no-ports.dot','w')
         f.write(graph.to_string())
 
 if __name__ == '__main__':
